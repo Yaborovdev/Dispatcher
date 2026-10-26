@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# ENV
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+
+# Alembic
+migrations/__pycache__/
+migrations/versions/__pycache__/
+
+# Other
+command.txt

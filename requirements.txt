@@ -1,0 +1,6 @@
+
+sqlalchemy
+pyside6
+keyring
+alembic
+openpyxl
