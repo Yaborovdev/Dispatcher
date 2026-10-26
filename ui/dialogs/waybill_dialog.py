@@ -1,3 +1,4 @@
+from PySide6.QtCore import QDate
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QFormLayout, QLineEdit, QComboBox, QDateEdit,
     QTextEdit, QDialogButtonBox, QMessageBox,
@@ -5,7 +6,7 @@ from PySide6.QtWidgets import (
 
 from database.models import Driver, Vehicle, Trailer, Customer
 
-TEMPLATE_TYPES = ["междугородний", "грузовой", "спецтехника", "автокран", "легковой"]
+TEMPLATE_TYPES = ["Междугородний", "Грузовой (4С)", "Грузовой (4Р)" "Спецтехника", "Автокран", "Легковой"]
 
 
 class WaybillDialog(QDialog):
@@ -46,7 +47,7 @@ class WaybillDialog(QDialog):
         form.addRow("Транспорт:", self.vehicle_combo)
         form.addRow("Полуприцеп:", self.trailer_combo)
         form.addRow("Заказчик:", self.customer_combo)
-        form.addRow("Тип шаблона:", self.template_combo)
+        form.addRow("Шаблон:", self.template_combo)
         form.addRow("Маршрут:", self.route_edit)
         layout.addLayout(form)
 

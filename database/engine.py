@@ -2,8 +2,6 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker
 
-from database.models import Base
-
 
 class Database:
     def __init__(self, config: dict):

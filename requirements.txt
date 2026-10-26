@@ -1,4 +1,4 @@
-
+psycopg[binary]
 sqlalchemy
 pyside6
 keyring

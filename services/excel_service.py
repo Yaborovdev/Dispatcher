@@ -55,52 +55,52 @@ def fill_waybill_template(waybill, output_path: str | Path) -> Path:
     ws = wb["Лист1"]
 
     # --- Номер и серия ПЛ ---
-    safe_write(ws, "BA4", waybill.number)
+    safe_write(ws, "CX3", waybill.number)
     safe_write(ws, "AJ4", "")
 
     # --- Дата выдачи ---
     d = waybill.date_issue
     if d:
-        safe_write(ws, "AK5", d.day)
-        safe_write(ws, "AM5", MONTHS_RU[d.month])
-        safe_write(ws, "AY5", d.year)
+        safe_write(ws, "BG5", d.day)
+        safe_write(ws, "BP5", MONTHS_RU[d.month])
+        safe_write(ws, "CQ5", str(d.year)[-2:])
 
     # --- Срок действия ---
     start = waybill.date_start or waybill.date_issue
     end = waybill.date_end
     if start:
-        safe_write(ws, "AK6", start.day)
-        safe_write(ws, "AM6", MONTHS_RU[start.month])
-        safe_write(ws, "AY6", start.year)
+        safe_write(ws, "BG6", start.day)
+        safe_write(ws, "BP6", MONTHS_RU[start.month])
+        safe_write(ws, "CM6", start.year)
     if end:
-        safe_write(ws, "BC6", end.day)
-        safe_write(ws, "BE6", MONTHS_RU[end.month])
-        safe_write(ws, "BK6", end.year)
+        safe_write(ws, "DF6", end.day)
+        safe_write(ws, "DO6", MONTHS_RU[end.month])
+        safe_write(ws, "EK6", end.year)
 
     # --- Транспорт ---
     v = waybill.vehicle
     if v:
-        safe_write(ws, "A12", v.brand_model)
-        safe_write(ws, "B13", v.gov_number)
+        safe_write(ws, "AH14", v.brand_model)
+        safe_write(ws, "AH15", v.gov_number)
 
     # --- Водитель ---
     drv = waybill.driver
     if drv:
-        safe_write(ws, "B14", drv.full_name)
-        safe_write(ws, "B15", drv.driver_license)
-        safe_write(ws, "B16", drv.snils)
+        safe_write(ws, "I16", drv.full_name)
+        safe_write(ws, "P18", drv.driver_license)
+        safe_write(ws, "P19", drv.snils)
 
     # --- Полуприцеп (Прицеп 1) ---
     t = waybill.trailer
     if t:
-        safe_write(ws, "I17", t.brand_model)
-        safe_write(ws, "S17", t.reg_number)
+        safe_write(ws, "I22", t.brand_model)
+        safe_write(ws, "AV22", t.reg_number)
 
     # --- Заказчик и маршрут ---
     if waybill.customer:
-        safe_write(ws, "A21", waybill.customer.name)
+        safe_write(ws, "A40", waybill.customer.name)
     if waybill.route:
-        safe_write(ws, "W21", waybill.route)
+        safe_write(ws, "AT40", waybill.route)
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -111,11 +111,12 @@ def fill_waybill_template(waybill, output_path: str | Path) -> Path:
 def _template_filename(template_type: str) -> str:
     """Возвращает имя файла шаблона для соответствующего типа ПЛ."""
     mapping = {
-        "междугородний": "mezhgorod.xlsx",
-        "грузовой": "gruzovoy_4C.xlsx",  # <--- Исправлено под ваш файл
-        "спецтехника": "spectehnika.xlsx",
-        "автокран": "avtokran.xlsx",
-        "легковой": "legkovoy.xlsx",
+        "Междугородний": "mezhgorod.xlsx",
+        "Грузовой (4С)": "gruzovoy_4C.xlsx",
+        "Грузовой (4Р)": "gruzovoy_4C.xlsx",
+        "Спецтехника": "spectehnika.xlsx",
+        "Автокран": "avtokran.xlsx",
+        "Легковой": "legkovoy.xlsx",
     }
     # Если тип не найден, по умолчанию берем грузовой
     return mapping.get(template_type, "gruzovoy_4C.xlsx")
