@@ -9,11 +9,14 @@ from ui.dialogs.trailer_dialog import TrailerDialog
 
 
 class TrailersPage(QWidget):
+    model_cls = Trailer
     COLUMNS = [
         ("brand_model", "Марка/модель"),
         ("vin", "VIN"),
         ("reg_number", "Рег. номер"),
     ]
+    order_by = "brand_model"
+    delete_error_hint = "возможно, есть путевые листы."
 
     def __init__(self, db, parent=None):
         super().__init__(parent)

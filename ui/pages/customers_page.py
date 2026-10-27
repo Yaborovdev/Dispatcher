@@ -9,11 +9,14 @@ from ui.dialogs.customer_dialog import CustomerDialog
 
 
 class CustomersPage(QWidget):
+    model_cls = Customer
     COLUMNS = [
         ("name", "Наименование"),
         ("address", "Адрес"),
         ("inn", "ИНН"),
     ]
+    order_by = "name"
+    delete_error_hint = "возможно, есть путевые листы."
 
     def __init__(self, db, parent=None):
         super().__init__(parent)

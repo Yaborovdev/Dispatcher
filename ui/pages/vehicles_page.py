@@ -10,6 +10,7 @@ from ui.dialogs.vehicle_dialog import VehicleDialog
 
 
 class VehiclesPage(QWidget):
+    model_cls = Vehicle
     COLUMNS = [
         ("type", "Тип"),
         ("brand_model", "Марка/модель"),
@@ -17,6 +18,8 @@ class VehiclesPage(QWidget):
         ("gov_number", "Госномер"),
         ("odometer_start", "Пробег"),
     ]
+    order_by = "brand_model"
+    delete_error_hint = "возможно, есть путевые листы."
 
     def __init__(self, db, parent=None):
         super().__init__(parent)

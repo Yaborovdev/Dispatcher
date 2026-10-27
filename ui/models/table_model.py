@@ -40,3 +40,11 @@ class RecordTableModel(QAbstractTableModel):
 
     def record_at(self, row: int):
         return self.rows[row]
+
+    def raw_value(self, row: int, column: int):
+        """Значение ячейки без форматирования — для фильтрации."""
+        if not (0 <= row < len(self.rows)) or not (0 <= column < len(self.columns)):
+            return None
+        obj = self.rows[row]
+        attr = self.columns[column][0]
+        return getattr(obj, attr, None)

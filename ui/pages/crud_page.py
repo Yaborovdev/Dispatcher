@@ -1,45 +1,38 @@
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
-    QAbstractItemView, QMessageBox,
+    QAbstractItemView, QMessageBox, QLineEdit,
 )
 
 from ui.models.table_model import RecordTableModel
+from ui.models.proxy import SearchProxyModel
 
 
 class CrudPage(QWidget):
-    """Базовая страница справочника: таблица + добавить / изменить / удалить.
-
-    Наследнику нужно задать model_cls, COLUMNS, order_by и реализовать
-    make_dialog() и delete_question(). Пример: ui/pages/drivers_page.py.
-    """
-
-    model_cls: type                       # ORM-класс записи
-    COLUMNS: list[tuple[str, str]] = []   # (атрибут, заголовок)
-    order_by: str | None = None           # имя атрибута для сортировки
-    delete_error_hint: str = ""           # подсказка в тексте ошибки удаления
+    model_cls: type
+    COLUMNS: list[tuple[str, str]] = []
+    order_by: str | None = None
+    search_columns: list[int] | None = None   # None = искать по всем колонкам
+    delete_error_hint: str = ""
 
     def __init__(self, db, parent=None):
         super().__init__(parent)
         self.db = db
         self.model = RecordTableModel(self.COLUMNS)
+        self.proxy = SearchProxyModel(self)
+        self.proxy.setSourceModel(self.model)
+        self.proxy.set_search_columns(self.search_columns)
         self._build_ui()
         self.reload()
 
-    # --- что переопределяет наследник ---------------------------------
-
     def make_dialog(self, record=None):
-        """Диалог добавления (record=None) или редактирования записи."""
         raise NotImplementedError
 
     def delete_question(self, record) -> str:
-        """Текст подтверждения удаления."""
         raise NotImplementedError
 
     def extra_toolbar_widgets(self) -> list[QWidget]:
-        """Дополнительные кнопки панели (например, экспорт)."""
         return []
-
-    # --- общая логика --------------------------------------------------
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -61,14 +54,24 @@ class CrudPage(QWidget):
         toolbar.addWidget(self.btn_refresh)
         layout.addLayout(toolbar)
 
+        # Строка поиска
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText("Поиск…")
+        self.search_edit.textChanged.connect(self._on_search)
+        layout.addWidget(self.search_edit)
+
         self.table = QTableView()
-        self.table.setModel(self.model)
+        self.table.setModel(self.proxy)
+        self.table.setSortingEnabled(True)  # сортировка по клику на заголовок
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.doubleClicked.connect(self.edit_record)
         layout.addWidget(self.table)
+
+    def _on_search(self, text: str):
+        self.proxy.setFilterFixedString(text)
 
     def reload(self):
         with self.db.session_scope() as session:
@@ -79,7 +82,10 @@ class CrudPage(QWidget):
 
     def _selected(self):
         idx = self.table.currentIndex()
-        return self.model.record_at(idx.row()) if idx.isValid() else None
+        if not idx.isValid():
+            return None
+        source_idx = self.proxy.mapToSource(idx)
+        return self.model.record_at(source_idx.row())
 
     def add_record(self):
         dlg = self.make_dialog()
