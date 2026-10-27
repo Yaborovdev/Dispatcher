@@ -1,12 +1,11 @@
-import keyring
+from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-from logging.config import fileConfig
+from sqlalchemy import create_engine, pool
+from sqlalchemy.engine import URL
+
 from database.models import Base
 from services.config_service import load_config
-
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -17,25 +16,29 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-config_data = load_config()
-db = config_data["database"]
-password = keyring.get_password("dispatcher_app", db["user"])
-
-config.set_main_option(
-    "sqlalchemy.url",
-    f"postgresql+psycopg://{db['user']}:{password}@{db['host']}:{db['port']}/{db['name']}"
-)
-
 target_metadata = Base.metadata
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
+
+def get_database_url() -> URL:
+    """Параметры подключения берём оттуда же, откуда их берёт приложение.
+
+    load_config() подставляет пароль из keyring. URL собирается через URL.create,
+    поэтому спецсимволы в пароле (@ : / %) экранируются корректно.
+    """
+    db = load_config().get("database")
+    if not db or not db.get("password"):
+        raise SystemExit(
+            "Настройки БД не найдены или пароль не сохранён. "
+            "Заполните их в приложении (Настройки → База данных) и повторите."
+        )
+    return URL.create(
+        drivername="postgresql+psycopg",
+        username=db["user"],
+        password=db["password"],
+        host=db["host"],
+        port=db["port"],
+        database=db["name"],
+    )
 
 
 def run_migrations_offline() -> None:
@@ -50,9 +53,8 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=get_database_url().render_as_string(hide_password=False),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -69,11 +71,7 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    connectable = create_engine(get_database_url(), poolclass=pool.NullPool)
 
     with connectable.connect() as connection:
         context.configure(

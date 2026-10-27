@@ -1,9 +1,13 @@
-from datetime import date
+import logging
 from pathlib import Path
 
 from openpyxl import load_workbook
 from openpyxl.cell import MergedCell
 from openpyxl.utils import get_column_letter
+
+from services.templates import TEMPLATES, TemplateSpec
+
+log = logging.getLogger(__name__)
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 
@@ -11,6 +15,14 @@ MONTHS_RU = [
     "", "января", "февраля", "марта", "апреля", "мая", "июня",
     "июля", "августа", "сентября", "октября", "ноября", "декабря",
 ]
+
+
+def _set_value(cell, value) -> None:
+    cell.value = value
+    # openpyxl превращает строку, начинающуюся с "=", в формулу.
+    # Данные из БД должны попадать в файл как текст, а не как формула.
+    if isinstance(value, str) and value.startswith("="):
+        cell.data_type = "s"
 
 
 def safe_write(ws, cell_address: str, value):
@@ -21,23 +33,73 @@ def safe_write(ws, cell_address: str, value):
     """
     cell = ws[cell_address]
 
-    # Проверяем, находится ли ячейка внутри объединенного диапазона
     for merged_range in ws.merged_cells.ranges:
         if cell.coordinate in merged_range:
             anchor = (
                 f"{get_column_letter(merged_range.min_col)}"
                 f"{merged_range.min_row}"
             )
-            ws[anchor] = value
+            _set_value(ws[anchor], value)
             return
 
-    # Если это MergedCell, но диапазон не найден — пропускаем во избежание ошибки
+    # MergedCell, но диапазон не найден — пропускаем во избежание ошибки
     if isinstance(cell, MergedCell):
-        print(f"ВНИМАНИЕ: {cell_address} - объединенная ячейка, но диапазон не найден. Запись пропущена.")
+        log.warning("%s — объединённая ячейка, но диапазон не найден. Запись пропущена.", cell_address)
         return
 
-    # Обычная ячейка
-    cell.value = value
+    _set_value(cell, value)
+
+
+def build_values(waybill) -> dict[str, object]:
+    """Собирает значения полей путевого листа; какие из них попадут в файл, решает шаблон."""
+    values: dict[str, object] = {"number": waybill.number}
+
+    d = waybill.date_issue
+    if d:
+        values.update(
+            issue_day=d.day,
+            issue_month=MONTHS_RU[d.month],
+            issue_year=d.year,
+            issue_year_short=str(d.year)[-2:],
+        )
+
+    start = waybill.date_start or waybill.date_issue
+    if start:
+        values.update(start_day=start.day, start_month=MONTHS_RU[start.month], start_year=start.year)
+
+    end = waybill.date_end
+    if end:
+        values.update(end_day=end.day, end_month=MONTHS_RU[end.month], end_year=end.year)
+
+    if waybill.vehicle:
+        values.update(vehicle_model=waybill.vehicle.brand_model, vehicle_number=waybill.vehicle.gov_number)
+
+    if waybill.driver:
+        values.update(
+            driver_name=waybill.driver.full_name,
+            driver_license=waybill.driver.driver_license,
+            driver_snils=waybill.driver.snils,
+        )
+
+    if waybill.trailer:
+        values.update(trailer_model=waybill.trailer.brand_model, trailer_number=waybill.trailer.reg_number)
+
+    if waybill.customer:
+        values["customer"] = waybill.customer.name
+    if waybill.route:
+        values["route"] = waybill.route
+
+    return values
+
+
+def _get_spec(template_type: str) -> TemplateSpec:
+    try:
+        return TEMPLATES[template_type]
+    except KeyError:
+        raise ValueError(
+            f"Неизвестный тип путевого листа: «{template_type}». "
+            f"Измените тип в путевом листе или добавьте его в services/templates.py."
+        ) from None
 
 
 def fill_waybill_template(waybill, output_path: str | Path) -> Path:
@@ -45,78 +107,31 @@ def fill_waybill_template(waybill, output_path: str | Path) -> Path:
     Заполняет Excel-шаблон данными путевого листа.
     waybill - объект модели Waybill (со всеми связями driver, vehicle и т.д.)
     """
-    template_name = _template_filename(waybill.template_type)
-    template_path = TEMPLATES_DIR / template_name
+    spec = _get_spec(waybill.template_type)
+    template_path = TEMPLATES_DIR / spec.file
 
     if not template_path.exists():
-        raise FileNotFoundError(f"Шаблон не найден: {template_path}")
+        raise FileNotFoundError(
+            f"Для типа «{waybill.template_type}» нет шаблона: ожидается файл {template_path}"
+        )
+    if not spec.cells:
+        raise ValueError(
+            f"Для типа «{waybill.template_type}» не заданы ячейки шаблона (services/templates.py)."
+        )
 
     wb = load_workbook(template_path)
-    ws = wb["Лист1"]
+    if spec.sheet not in wb.sheetnames:
+        raise ValueError(
+            f"В шаблоне {spec.file} нет листа «{spec.sheet}» (есть: {', '.join(wb.sheetnames)})."
+        )
+    ws = wb[spec.sheet]
 
-    # --- Номер и серия ПЛ ---
-    safe_write(ws, "CX3", waybill.number)
-    safe_write(ws, "AJ4", "")
-
-    # --- Дата выдачи ---
-    d = waybill.date_issue
-    if d:
-        safe_write(ws, "BG5", d.day)
-        safe_write(ws, "BP5", MONTHS_RU[d.month])
-        safe_write(ws, "CQ5", str(d.year)[-2:])
-
-    # --- Срок действия ---
-    start = waybill.date_start or waybill.date_issue
-    end = waybill.date_end
-    if start:
-        safe_write(ws, "BG6", start.day)
-        safe_write(ws, "BP6", MONTHS_RU[start.month])
-        safe_write(ws, "CM6", start.year)
-    if end:
-        safe_write(ws, "DF6", end.day)
-        safe_write(ws, "DO6", MONTHS_RU[end.month])
-        safe_write(ws, "EK6", end.year)
-
-    # --- Транспорт ---
-    v = waybill.vehicle
-    if v:
-        safe_write(ws, "AH14", v.brand_model)
-        safe_write(ws, "AH15", v.gov_number)
-
-    # --- Водитель ---
-    drv = waybill.driver
-    if drv:
-        safe_write(ws, "I16", drv.full_name)
-        safe_write(ws, "P18", drv.driver_license)
-        safe_write(ws, "P19", drv.snils)
-
-    # --- Полуприцеп (Прицеп 1) ---
-    t = waybill.trailer
-    if t:
-        safe_write(ws, "I22", t.brand_model)
-        safe_write(ws, "AV22", t.reg_number)
-
-    # --- Заказчик и маршрут ---
-    if waybill.customer:
-        safe_write(ws, "A40", waybill.customer.name)
-    if waybill.route:
-        safe_write(ws, "AT40", waybill.route)
+    values = build_values(waybill)
+    for field, address in spec.cells.items():
+        if field in values:
+            safe_write(ws, address, values[field])
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(output_path)
     return output_path
-
-
-def _template_filename(template_type: str) -> str:
-    """Возвращает имя файла шаблона для соответствующего типа ПЛ."""
-    mapping = {
-        "Междугородний": "mezhgorod.xlsx",
-        "Грузовой (4С)": "gruzovoy_4C.xlsx",
-        "Грузовой (4Р)": "gruzovoy_4C.xlsx",
-        "Спецтехника": "spectehnika.xlsx",
-        "Автокран": "avtokran.xlsx",
-        "Легковой": "legkovoy.xlsx",
-    }
-    # Если тип не найден, по умолчанию берем грузовой
-    return mapping.get(template_type, "gruzovoy_4C.xlsx")

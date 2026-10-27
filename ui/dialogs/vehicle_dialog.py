@@ -48,6 +48,7 @@ class VehicleDialog(QDialog):
             self.type_combo.setCurrentIndex(idx)
         self.brand_edit.setText(v.brand_model or "")
         self.gov_edit.setText(v.gov_number or "")
+        self.vin_edit.setText(v.vin or "")
         self.odometer_spin.setValue(v.odometer_start or 0)
 
     def _on_save(self):

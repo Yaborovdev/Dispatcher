@@ -5,8 +5,7 @@ from PySide6.QtWidgets import (
 )
 
 from database.models import Driver, Vehicle, Trailer, Customer
-
-TEMPLATE_TYPES = ["Междугородний", "Грузовой (4С)", "Грузовой (4Р)" "Спецтехника", "Автокран", "Легковой"]
+from services.templates import TEMPLATE_TYPES
 
 
 class WaybillDialog(QDialog):

@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker
@@ -32,3 +34,16 @@ class Database:
 
     def get_session(self):
         return self.SessionLocal()
+
+    @contextmanager
+    def session_scope(self):
+        """Сессия с автоматическим commit / rollback / close."""
+        session = self.SessionLocal()
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
